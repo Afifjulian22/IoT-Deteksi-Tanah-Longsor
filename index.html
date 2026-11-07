@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Telemetri & Deteksi Dini Longsor | BPBD Purbalingga</title>
+  <!-- Tailwind CSS Local -->
+  <script src="assets/js/tailwind.min.js"></script>
+  <!-- Three.js & OrbitControls Local -->
+  <script src="assets/js/three.min.js"></script>
+  <script src="assets/js/OrbitControls.js"></script>
+  <!-- Chart.js Local -->
+  <script src="assets/js/chart.umd.min.js"></script>
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              850: '#141824',
+              900: '#0f131d',
+              950: '#090c14'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#090c14] text-slate-200 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- TOP INSTRUMENTATION HEADER -->
+  <header class="bg-[#0f1422] border-b border-slate-800/90 px-4 lg:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-50">
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded bg-slate-800 border border-slate-700 flex items-center justify-center text-sky-400 font-mono font-bold text-xs tracking-wider">
+        SMD
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-sm font-semibold tracking-wide text-white uppercase">Sistem Telemetri & Deteksi Dini Longsor</h1>
+          <span class="px-1.5 py-0.5 text-[10px] font-mono text-slate-400 bg-slate-800 border border-slate-700 rounded">ESP32 &bull; MPU6050 &bull; RF</span>
+        </div>
+        <p class="text-[11px] text-slate-400">Laboratorium Maket Geoteknik &bull; Target Kajian BPBD Kabupaten Purbalingga</p>
+      </div>
+    </div>
+
+    <!-- Center System Status -->
+    <div class="hidden md:flex items-center space-x-4 bg-[#090c14] px-3.5 py-1 rounded border border-slate-800 text-xs font-mono">
+      <div class="flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span class="text-slate-300">ESP32 Node: <span class="text-emerald-400 font-medium">ONLINE (50Hz)</span></span>
+      </div>
+      <div class="h-3 w-px bg-slate-800"></div>
+      <div class="text-slate-400" id="live-clock">12:00:00 WIB</div>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="flex items-center space-x-2">
+      <button id="btn-sound" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 flex items-center space-x-1.5 transition">
+        <span id="sound-icon">🔔</span>
+        <span id="sound-label">Buzzer: Aktif</span>
+      </button>
+      <button id="btn-toggle-demo" class="px-2.5 py-1 rounded bg-sky-700 hover:bg-sky-600 text-white text-xs font-medium border border-sky-600 transition">
+        Panel Simulasi
+      </button>
+      <button id="btn-fullscreen" class="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs" title="Fullscreen">
+        ⛶
+      </button>
+    </div>
+  </header>
+
+  <!-- KPI SUMMARY CARDS -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 px-4 lg:px-6 py-2.5">
+    <!-- Card 1: Alert Level -->
+    <div id="card-alert" class="panel p-3 border-emerald-600/50 flex flex-col justify-between">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Status Triase Lereng</span>
+        <span id="badge-alert-p" class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">P0 - AMAN</span>
+      </div>
+      <div class="my-1.5">
+        <div id="text-alert-status" class="text-xl lg:text-2xl font-bold text-emerald-400 tracking-tight">KONDISI STABIL</div>
+        <p id="text-alert-desc" class="text-[11px] text-slate-400">Tidak ada deformasi geser aktif.</p>
+      </div>
+      <div class="pt-1.5 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <span>Lead Time: <strong id="val-leadtime" class="text-slate-200">0s</strong></span>
+        <span>ML Confidence: <strong id="val-confidence" class="text-emerald-400">96.8%</strong></span>
+      </div>
+    </div>
+
+    <!-- Card 2: Inclinometer MPU6050 -->
+    <div class="panel p-3 flex flex-col justify-between">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Inclinometer (MPU6050)</span>
+        <span class="text-[10px] font-mono text-sky-400">DMP Filter</span>
+      </div>
+      <div class="my-1.5 flex items-baseline space-x-4">
+        <div>
+          <span class="text-[11px] text-slate-400">Pitch:</span>
+          <span id="val-pitch" class="text-xl lg:text-2xl font-bold font-mono text-sky-400">2.1°</span>
+        </div>
+        <div class="h-5 w-px bg-slate-800"></div>
+        <div>
+          <span class="text-[11px] text-slate-400">Roll:</span>
+          <span id="val-roll" class="text-xl lg:text-2xl font-bold font-mono text-slate-300">0.8°</span>
+        </div>
+      </div>
+      <div class="pt-1.5 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <span>Laju Geser: <strong id="val-tilt-rate" class="text-slate-200">0.04°/s</strong></span>
+        <span>Batas Kritis: <strong class="text-rose-400">&gt;15.0°</strong></span>
+      </div>
+    </div>
+
+    <!-- Card 3: Soil Moisture -->
+    <div class="panel p-3 flex flex-col justify-between">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Kelembapan Tanah (VWC)</span>
+        <span id="badge-soil-status" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-sky-400 border border-slate-700">OPTIMAL</span>
+      </div>
+      <div class="my-1.5">
+        <div class="flex items-baseline space-x-1">
+          <span id="val-moisture" class="text-xl lg:text-2xl font-bold font-mono text-sky-400">32%</span>
+          <span class="text-[11px] text-slate-400">Kapasitansi ADC1</span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-1 mt-1 overflow-hidden">
+          <div id="bar-moisture" class="bg-sky-500 h-1 rounded-full transition-all duration-300" style="width: 32%"></div>
+        </div>
+      </div>
+      <div class="pt-1.5 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <span>Kondisi: <strong id="text-moisture-condition" class="text-slate-200">Normal / Kering</strong></span>
+        <span>Ambang Jenuh: <strong class="text-amber-400">&gt;70%</strong></span>
+      </div>
+    </div>
+
+    <!-- Card 4: Rain & Vibration -->
+    <div class="panel p-3 flex flex-col justify-between">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Hujan & Akselerasi RMS</span>
+        <span class="text-[10px] font-mono text-slate-400">Dual Channel</span>
+      </div>
+      <div class="my-1.5 flex items-baseline space-x-4">
+        <div>
+          <span class="text-[11px] text-slate-400">Hujan:</span>
+          <span id="val-rain" class="text-xl lg:text-2xl font-bold font-mono text-sky-400">0%</span>
+        </div>
+        <div class="h-5 w-px bg-slate-800"></div>
+        <div>
+          <span class="text-[11px] text-slate-400">Getar:</span>
+          <span id="val-vibe" class="text-xl lg:text-2xl font-bold font-mono text-amber-400">0.03g</span>
+        </div>
+      </div>
+      <div class="pt-1.5 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <span>Semprotan: <strong id="val-spray-status" class="text-slate-200">Off</strong></span>
+        <span>Baseline Noise: <strong class="text-emerald-400">0.01g</strong></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAIN WORKSPACE -->
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-2.5 px-4 lg:px-6 pb-24">
+
+    <!-- LEFT: 3D REALISTIC MODEL & 2D SCHEMATIC (Col 8) -->
+    <div class="lg:col-span-8 flex flex-col gap-2.5">
+      <div class="panel flex-1 flex flex-col overflow-hidden relative min-h-[480px]">
+
+        <!-- Viewport Toolbar -->
+        <div class="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-[#0f1422]">
+          <div class="flex items-center space-x-1.5">
+            <button id="tab-3d" class="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 text-sky-400 border border-slate-700 transition">
+              3D Digital Twin Maket
+            </button>
+            <button id="tab-2d" class="px-2.5 py-1 rounded text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+              2D Skema Rekayasa Maket
+            </button>
+          </div>
+
+          <div id="three-controls" class="flex items-center space-x-2 text-xs">
+            <button id="btn-reset-cam" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">
+              Reset Kamera
+            </button>
+            <button id="btn-toggle-wire" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">
+              Wireframe
+            </button>
+            <span class="text-slate-500 text-[11px] hidden sm:inline">&bull; Putar (Drag) &bull; Zoom (Scroll)</span>
+          </div>
+        </div>
+
+        <!-- VIEWPORT AREA -->
+        <div class="relative flex-1 w-full h-full min-h-[420px]">
+          <!-- 3D Canvas Container -->
+          <div id="three-container" class="absolute inset-0 w-full h-full"></div>
+
+          <!-- Technical HUD Overlay -->
+          <div class="absolute top-3 left-3 pointer-events-none flex flex-col space-y-1 text-[11px] font-mono">
+            <div class="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-800 text-slate-300">
+              Geometri: <span class="text-sky-400">Lereng Kemiringan Alam (Slope 32°)</span>
+            </div>
+            <div class="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-800 text-slate-300">
+              Sensor Probe: <span id="hud-node-status" class="text-emerald-400">ESP32-NODE-01 (Stabil)</span>
+            </div>
+            <div id="hud-shear-warning" class="hidden px-2 py-0.5 rounded bg-rose-950/90 border border-rose-700 text-rose-300">
+              ⚠️ Deformasi Geser Masif (Rotational Failure)
+            </div>
+          </div>
+
+          <!-- 2D CAD SCHEMATIC -->
+          <div id="twod-container" class="absolute inset-0 w-full h-full bg-[#0a0d14] p-6 hidden flex-col items-center justify-center">
+            <div class="w-full max-w-2xl bg-[#0f1422] border border-slate-800 rounded-lg p-5 relative">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3 text-xs font-mono">
+                <span class="font-bold text-slate-200">SKEMA POTONGAN MELINTANG MAKET AKRILIK (CROSS-SECTION)</span>
+                <span class="text-slate-500">Dimensi Maket: 60 x 30 x 40 cm</span>
+              </div>
+
+              <!-- Vector Drawing -->
+              <svg viewBox="0 0 600 300" class="w-full h-auto">
+                <defs>
+                  <linearGradient id="soilGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#523e2b"/>
+                    <stop offset="100%" stop-color="#36281b"/>
+                  </linearGradient>
+                  <linearGradient id="clayGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#7c5e42"/>
+                    <stop offset="100%" stop-color="#59412d"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- Box Acrylic Outer Frame -->
+                <rect x="30" y="30" width="540" height="230" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="3" rx="2"/>
+                <text x="40" y="48" fill="#38bdf8" font-size="9" font-family="monospace">DINDING AKRILIK BENING 5MM (KAMERA SINKRONISASI VIDEO)</text>
+
+                <!-- Rain Spray Nozzle -->
+                <circle cx="280" cy="50" r="8" fill="#0284c7"/>
+                <path d="M280 58 L240 110 M280 58 L280 110 M280 58 L320 110" stroke="#38bdf8" stroke-width="1" stroke-dasharray="2"/>
+                <text x="295" y="54" fill="#38bdf8" font-size="9" font-family="monospace">Semprotan Hujan Buatan (4 Skenario)</text>
+
+                <!-- Stable Base / Bedrock -->
+                <polygon points="50,240 550,240 550,220 50,220" fill="#1e293b"/>
+                <text x="230" y="233" fill="#64748b" font-size="9" font-family="monospace">Pelat Dasar Berdrainase</text>
+
+                <!-- Subsoil Clay Layer -->
+                <polygon points="50,220 550,220 550,190 260,110 50,220" fill="url(#clayGrad)"/>
+
+                <!-- Topsoil Layer -->
+                <polygon points="50,210 550,180 550,160 260,85 50,190" fill="url(#soilGrad)"/>
+
+                <!-- Soil Moisture Sensor -->
+                <rect x="220" y="105" width="5" height="35" fill="#f59e0b"/>
+                <text x="135" y="80" fill="#f59e0b" font-size="8" font-family="monospace">Sensor Kelembapan (ADC1)</text>
+
+                <!-- Interactive ESP32 Node Marker -->
+                <g id="svg-node-click" class="cursor-pointer" onclick="openDeviceModal()">
+                  <circle id="svg-pulse-ring" cx="360" cy="115" r="16" fill="#10b981" fill-opacity="0.2"/>
+                  <circle id="svg-node-dot" cx="360" cy="115" r="8" fill="#10b981" stroke="#ffffff" stroke-width="1.5"/>
+                  <text x="360" y="118" text-anchor="middle" fill="#ffffff" font-size="8" font-weight="bold">1</text>
+                  <!-- Tag Label -->
+                  <rect x="380" y="105" width="125" height="20" rx="3" fill="#0f172a" stroke="#10b981" stroke-width="1"/>
+                  <text x="386" y="118" fill="#10b981" font-size="8" font-family="monospace" font-weight="bold">ESP32 + MPU6050</text>
+                </g>
+
+                <!-- Drainage Outlet -->
+                <rect x="525" y="225" width="25" height="10" fill="#0284c7" rx="1"/>
+                <text x="490" y="255" fill="#38bdf8" font-size="8" font-family="monospace">Outlet Drainase</text>
+              </svg>
+
+              <p class="mt-3 text-center text-xs text-slate-400 font-mono">
+                Klik ikon <strong>Node ESP32 (1)</strong> untuk melihat pop-up telemetri perangkat.
+              </p>
+            </div>
+          </div>
+
+          <!-- INTERACTIVE DEVICE MODAL -->
+          <div id="device-modal" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 panel p-4 shadow-xl border-slate-700 hidden z-20">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5">
+              <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span class="font-bold text-xs text-white">IOT NODE: ESP32-DEV-01</span>
+              </div>
+              <button onclick="closeDeviceModal()" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-slate-800">✕</button>
+            </div>
+
+            <div class="space-y-1.5 text-xs font-mono">
+              <div class="flex justify-between py-0.5 border-b border-slate-800/60">
+                <span class="text-slate-400">Lokasi:</span>
+                <span class="text-slate-200">Puncak Bidang Gelincir</span>
+              </div>
+              <div class="flex justify-between py-0.5 border-b border-slate-800/60">
+                <span class="text-slate-400">Catu Daya:</span>
+                <span class="text-emerald-400">5.0V USB VCC (Stabil)</span>
+              </div>
+              <div class="flex justify-between py-0.5 border-b border-slate-800/60">
+                <span class="text-slate-400">Kemiringan MPU:</span>
+                <span class="text-sky-400" id="modal-pitch-val">Pitch: 2.1° | Roll: 0.8°</span>
+              </div>
+              <div class="flex justify-between py-0.5 border-b border-slate-800/60">
+                <span class="text-slate-400">Kelembapan:</span>
+                <span class="text-sky-400" id="modal-moist-val">32%</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-slate-800">
+              <button onclick="calibrateSensorZero()" class="px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition">
+                Kalibrasi Nol
+              </button>
+              <button onclick="acknowledgeCurrentAlert()" class="px-2.5 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white text-xs font-medium transition">
+                Acknowledge
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: TELEMETRY CHART, ML BENCHMARK & INCIDENT FEED (Col 4) -->
+    <div class="lg:col-span-4 flex flex-col gap-2.5">
+
+      <!-- TELEMETRY CHART -->
+      <div class="panel p-3 flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center space-x-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Telemetri Real-Time</span>
+          </div>
+          <span class="text-[10px] font-mono text-slate-400">30s Rolling Window</span>
+        </div>
+        <div class="h-40 w-full">
+          <canvas id="telemetryChart"></canvas>
+        </div>
+      </div>
+
+      <!-- MACHINE LEARNING BENCHMARK CARD -->
+      <div class="panel p-3 flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Komparasi Machine Learning</span>
+          <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-purple-400 border border-slate-700">GroupKFold</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+          <div class="bg-[#090c14] p-2 rounded border border-slate-800">
+            <div class="text-[10px] text-slate-400">Model Utama</div>
+            <div class="font-bold text-sky-400 text-xs">Random Forest</div>
+            <div class="text-[11px] text-slate-300 mt-1">Status: <strong id="ml-rf-pred" class="text-emerald-400">AMAN</strong></div>
+            <div class="text-[10px] text-slate-400">F1-Score: 94.2%</div>
+          </div>
+          <div class="bg-[#090c14] p-2 rounded border border-slate-800">
+            <div class="text-[10px] text-slate-400">Baseline Pembanding</div>
+            <div class="font-bold text-slate-300 text-xs">Aturan Ambang</div>
+            <div class="text-[11px] text-slate-300 mt-1">Status: <strong id="ml-base-pred" class="text-emerald-400">AMAN</strong></div>
+            <div class="text-[10px] text-slate-400">Ambang: Statis</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INCIDENT LOG FEED -->
+      <div class="panel p-3 flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Log Kejadian & Peringatan</span>
+          </div>
+          <button onclick="clearIncidentLog()" class="text-[10px] text-slate-400 hover:text-slate-200">Clear</button>
+        </div>
+
+        <div id="incident-feed" class="space-y-1.5 overflow-y-auto max-h-52 pr-1 text-xs">
+          <!-- Dynamically populated incident cards -->
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- BOTTOM SIMULATION CONTROLLER DOCK -->
+  <footer id="demo-controller" class="fixed bottom-0 left-0 right-0 bg-[#0f1422] border-t border-slate-800 p-2.5 z-40 shadow-2xl transition-transform duration-300">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2.5">
+
+      <!-- Preset Scenarios -->
+      <div class="flex items-center flex-wrap gap-1.5">
+        <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider mr-1">Skenario Demo:</span>
+        <button onclick="applyScenario('normal')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 text-xs font-medium transition">
+          1. Normal (Aman)
+        </button>
+        <button onclick="applyScenario('rain')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs font-medium transition">
+          2. Hujan (Waspada)
+        </button>
+        <button onclick="applyScenario('collapse')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700 text-xs font-medium transition">
+          3. Longsor Runtuh (Bahaya)
+        </button>
+        <button id="btn-auto-loop" onclick="toggleAutoDemo()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-purple-400 border border-slate-700 text-xs font-medium transition">
+          ▶ Auto-Loop Demo
+        </button>
+      </div>
+
+      <!-- Live Sliders -->
+      <div class="flex items-center flex-wrap gap-3.5 text-xs font-mono">
+        <div class="flex items-center space-x-1.5">
+          <span class="text-slate-400">Pitch:</span>
+          <input id="slider-pitch" type="range" min="0" max="35" step="0.5" value="2" class="w-20" oninput="manualSliderChange()">
+          <span id="slider-pitch-val" class="text-sky-400 w-8">2.0°</span>
+        </div>
+
+        <div class="flex items-center space-x-1.5">
+          <span class="text-slate-400">Lembap:</span>
+          <input id="slider-moist" type="range" min="10" max="98" step="1" value="32" class="w-20" oninput="manualSliderChange()">
+          <span id="slider-moist-val" class="text-sky-400 w-8">32%</span>
+        </div>
+
+        <div class="flex items-center space-x-1.5">
+          <span class="text-slate-400">Hujan:</span>
+          <input id="slider-rain" type="range" min="0" max="100" step="5" value="0" class="w-16" oninput="manualSliderChange()">
+          <span id="slider-rain-val" class="text-sky-400 w-8">0%</span>
+        </div>
+
+        <div class="flex items-center space-x-1.5">
+          <span class="text-slate-400">Getar:</span>
+          <input id="slider-vibe" type="range" min="0" max="1.5" step="0.05" value="0.03" class="w-16" oninput="manualSliderChange()">
+          <span id="slider-vibe-val" class="text-amber-400 w-10">0.03g</span>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
