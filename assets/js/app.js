@@ -230,39 +230,445 @@ function createPCBTexture() {
   return new THREE.CanvasTexture(canvas);
 }
 
-// Web Audio API Synthesizer (Crisp Technical Beeps)
-function playBuzzerSound(type) {
-  if (!state.isBuzzerActive) return;
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!state.audioCtx) state.audioCtx = new AudioContext();
-    if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
 
-    const osc = state.audioCtx.createOscillator();
-    const gain = state.audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(state.audioCtx.destination);
+// ==========================================
+// HIGH-FIDELITY WEB AUDIO SOUND ENGINE
+// ==========================================
+// 100% Procedural synthesis (Zero external MP3 dependencies)
+// Menghasilkan:
+// 1. Suara Hujan Realistis (Pink Noise + Bandpass Filter + Raindrop Droplet Clicks)
+// 2. Suara Gemuruh Longsor (Deep Seismic Earth Rumble + Low-Frequency Roar + Soil Cracking)
+// 3. Suara Sirene Alarm Evakuasi (Wailing Emergency Dual-Tone Siren)
+// 4. Suara Piezo Buzzer Sensor ESP32 (Physical 2.8kHz Square Wave Hardware Chirp)
 
-    if (type === 'P1') { // Critical Alarm
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(820, state.audioCtx.currentTime);
-      osc.frequency.setValueAtTime(420, state.audioCtx.currentTime + 0.15);
-      gain.gain.setValueAtTime(0.14, state.audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, state.audioCtx.currentTime + 0.32);
-      osc.start();
-      osc.stop(state.audioCtx.currentTime + 0.32);
-    } else if (type === 'P2') { // Warning Beep
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(620, state.audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.09, state.audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, state.audioCtx.currentTime + 0.18);
-      osc.start();
-      osc.stop(state.audioCtx.currentTime + 0.18);
+const SoundEngine = {
+  ctx: null,
+  isMuted: false,
+  noiseBuffer: null,
+
+  // Continuous audio nodes
+  rainSource: null,
+  rainFilter: null,
+  rainGain: null,
+  dropletTimer: null,
+
+  rumbleSource: null,
+  rumbleFilter: null,
+  rumbleSubOsc: null,
+  rumbleLFO: null,
+  rumbleGain: null,
+  rumbleTimer: null,
+
+  sirenOsc: null,
+  sirenLFO: null,
+  sirenGain: null,
+  sirenTimer: null,
+
+  init() {
+    if (this.ctx) return this.ctx;
+    try {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtxClass) {
+        this.ctx = new AudioCtxClass();
+        this.createNoiseBuffer();
+      }
+    } catch (e) {
+      console.warn('Web Audio API not supported:', e);
     }
-  } catch (e) {
-    console.warn('AudioContext requires user interaction:', e);
+    return this.ctx;
+  },
+
+  resume() {
+    if (!this.ctx) this.init();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+  },
+
+  createNoiseBuffer() {
+    if (!this.ctx) return;
+    // Generate 3 seconds of high-quality pink/brown noise
+    const bufferSize = this.ctx.sampleRate * 3;
+    this.noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = this.noiseBuffer.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.08;
+      b6 = white * 0.115926;
+    }
+  },
+
+  // ----------------------------------------
+  // 1. SUARA HUJAN & RIKSAAN AIR (Rain Audio)
+  // ----------------------------------------
+  updateRain(intensityPercent) {
+    if (this.isMuted) {
+      this.stopRain();
+      return;
+    }
+    this.resume();
+    if (!this.ctx) return;
+
+    if (intensityPercent <= 0) {
+      this.stopRain();
+      return;
+    }
+
+    const targetGain = Math.min(0.25, (intensityPercent / 100) * 0.22);
+
+    if (!this.rainSource) {
+      if (!this.noiseBuffer) this.createNoiseBuffer();
+      this.rainSource = this.ctx.createBufferSource();
+      this.rainSource.buffer = this.noiseBuffer;
+      this.rainSource.loop = true;
+
+      // Bandpass filter for realistic rain patter
+      this.rainFilter = this.ctx.createBiquadFilter();
+      this.rainFilter.type = 'bandpass';
+      this.rainFilter.frequency.setValueAtTime(1600, this.ctx.currentTime);
+      this.rainFilter.Q.setValueAtTime(0.8, this.ctx.currentTime);
+
+      this.rainGain = this.ctx.createGain();
+      this.rainGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+
+      this.rainSource.connect(this.rainFilter);
+      this.rainFilter.connect(this.rainGain);
+      this.rainGain.connect(this.ctx.destination);
+      this.rainSource.start();
+
+      // Start raindrop clicks
+      this.scheduleRainDroplets();
+    }
+
+    // Dynamic frequency adjustment based on rain intensity
+    const freq = 1200 + (intensityPercent / 100) * 1400;
+    this.rainFilter.frequency.linearRampToValueAtTime(freq, this.ctx.currentTime + 0.15);
+    this.rainGain.gain.linearRampToValueAtTime(targetGain, this.ctx.currentTime + 0.15);
+  },
+
+  scheduleRainDroplets() {
+    if (this.dropletTimer) clearTimeout(this.dropletTimer);
+    if (!this.rainSource || this.isMuted || state.rain <= 0) return;
+
+    // Trigger individual water droplet clicks hitting acrylic/soil
+    const clickFreq = 2200 + Math.random() * 2200;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(clickFreq, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(clickFreq * 0.4, this.ctx.currentTime + 0.015);
+
+      const dropVol = (state.rain / 100) * 0.04;
+      gain.gain.setValueAtTime(dropVol, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.018);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.02);
+    } catch (e) {}
+
+    const nextDelay = Math.max(30, 250 - state.rain * 2.2 + Math.random() * 40);
+    this.dropletTimer = setTimeout(() => this.scheduleRainDroplets(), nextDelay);
+  },
+
+  stopRain() {
+    if (this.dropletTimer) {
+      clearTimeout(this.dropletTimer);
+      this.dropletTimer = null;
+    }
+    if (this.rainGain && this.ctx) {
+      this.rainGain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
+      setTimeout(() => {
+        if (this.rainSource) {
+          try { this.rainSource.stop(); this.rainSource.disconnect(); } catch (e) {}
+          this.rainSource = null;
+        }
+      }, 250);
+    }
+  },
+
+  // ----------------------------------------
+  // 2. SUARA GEMURUH LONGSOR & TANAH RETAK
+  // ----------------------------------------
+  triggerLandslideRumble(intensity = 1.0) {
+    if (this.isMuted) return;
+    this.resume();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const duration = 2.8 * intensity;
+
+      // Deep rumble noise filtered at low-pass ~75Hz
+      const rumbleNoise = this.ctx.createBufferSource();
+      if (!this.noiseBuffer) this.createNoiseBuffer();
+      rumbleNoise.buffer = this.noiseBuffer;
+      rumbleNoise.loop = true;
+
+      const rumbleFilter = this.ctx.createBiquadFilter();
+      rumbleFilter.type = 'lowpass';
+      rumbleFilter.frequency.setValueAtTime(80 * intensity, now);
+      rumbleFilter.Q.setValueAtTime(4.5, now);
+
+      const rumbleGain = this.ctx.createGain();
+      rumbleGain.gain.setValueAtTime(0.01, now);
+      rumbleGain.gain.linearRampToValueAtTime(0.24 * intensity, now + 0.35);
+      rumbleGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      // Sub-bass seismic oscillator (38Hz - 54Hz vibrating rumble)
+      const subOsc = this.ctx.createOscillator();
+      subOsc.type = 'sawtooth';
+      subOsc.frequency.setValueAtTime(42, now);
+      subOsc.frequency.exponentialRampToValueAtTime(32, now + duration);
+
+      // Tremolo LFO for rolling ground movement
+      const lfo = this.ctx.createOscillator();
+      lfo.frequency.setValueAtTime(4.5, now);
+      const lfoGain = this.ctx.createGain();
+      lfoGain.gain.setValueAtTime(0.12 * intensity, now);
+      lfo.connect(lfoGain.gain);
+
+      rumbleNoise.connect(rumbleFilter);
+      rumbleFilter.connect(rumbleGain);
+      subOsc.connect(rumbleFilter);
+      rumbleGain.connect(this.ctx.destination);
+
+      rumbleNoise.start(now);
+      subOsc.start(now);
+      rumbleNoise.stop(now + duration);
+      subOsc.stop(now + duration);
+
+      // Soil snapping / tension cracking sound
+      this.triggerSoilCrackSnap(now + 0.15);
+      if (intensity > 0.6) {
+        this.triggerSoilCrackSnap(now + 0.6);
+        this.triggerSoilCrackSnap(now + 1.1);
+      }
+    } catch (e) {
+      console.warn('Rumble playback error:', e);
+    }
+  },
+
+  triggerSoilCrackSnap(timeOffset) {
+    if (!this.ctx || this.isMuted) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(450, timeOffset);
+      osc.frequency.exponentialRampToValueAtTime(90, timeOffset + 0.08);
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(350, timeOffset);
+      filter.Q.setValueAtTime(2.0, timeOffset);
+
+      gain.gain.setValueAtTime(0.15, timeOffset);
+      gain.gain.exponentialRampToValueAtTime(0.001, timeOffset + 0.09);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(timeOffset);
+      osc.stop(timeOffset + 0.1);
+    } catch (e) {}
+  },
+
+  // ----------------------------------------
+  // 3. SUARA SIRENE ALARM DARURAT (Emergency Alarm)
+  // ----------------------------------------
+  updateSiren(status) {
+    if (this.isMuted) {
+      this.stopSiren();
+      return;
+    }
+    this.resume();
+    if (!this.ctx) return;
+
+    if (status === 'BAHAYA') {
+      this.startEvacuationSiren();
+    } else if (status === 'WASPADA') {
+      this.startWarningBeeps();
+    } else {
+      this.stopSiren();
+    }
+  },
+
+  startEvacuationSiren() {
+    this.stopSiren();
+    if (!this.ctx || this.isMuted) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      this.sirenOsc = this.ctx.createOscillator();
+      this.sirenGain = this.ctx.createGain();
+
+      this.sirenOsc.type = 'sawtooth';
+
+      // Wailing siren frequency modulation (750Hz to 1100Hz every 0.5s)
+      this.sirenLFO = this.ctx.createOscillator();
+      this.sirenLFO.type = 'triangle';
+      this.sirenLFO.frequency.setValueAtTime(1.8, now); // Wailing speed
+
+      const lfoDepth = this.ctx.createGain();
+      lfoDepth.gain.setValueAtTime(180, now);
+      this.sirenOsc.frequency.setValueAtTime(880, now);
+
+      this.sirenLFO.connect(lfoDepth);
+      lfoDepth.connect(this.sirenOsc.frequency);
+
+      this.sirenGain.gain.setValueAtTime(0.01, now);
+      this.sirenGain.gain.linearRampToValueAtTime(0.12, now + 0.2);
+
+      // Lowpass filter to soften harshness
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2400, now);
+
+      this.sirenOsc.connect(filter);
+      filter.connect(this.sirenGain);
+      this.sirenGain.connect(this.ctx.destination);
+
+      this.sirenOsc.start();
+      this.sirenLFO.start();
+    } catch (e) {
+      console.warn('Siren start error:', e);
+    }
+  },
+
+  startWarningBeeps() {
+    this.stopSiren();
+    if (!this.ctx || this.isMuted) return;
+
+    // Periodic dual warning beep every 1.8 seconds
+    const playWarningBeep = () => {
+      if (state.status !== 'WASPADA' || this.isMuted) {
+        clearInterval(this.sirenTimer);
+        this.sirenTimer = null;
+        return;
+      }
+      this.playESP32Buzzer('warning');
+    };
+
+    playWarningBeep();
+    this.sirenTimer = setInterval(playWarningBeep, 1800);
+  },
+
+  stopSiren() {
+    if (this.sirenTimer) {
+      clearInterval(this.sirenTimer);
+      this.sirenTimer = null;
+    }
+    if (this.sirenGain && this.ctx) {
+      this.sirenGain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+      setTimeout(() => {
+        if (this.sirenOsc) {
+          try { this.sirenOsc.stop(); this.sirenOsc.disconnect(); } catch (e) {}
+          this.sirenOsc = null;
+        }
+        if (this.sirenLFO) {
+          try { this.sirenLFO.stop(); this.sirenLFO.disconnect(); } catch (e) {}
+          this.sirenLFO = null;
+        }
+      }, 180);
+    }
+  },
+
+  // ----------------------------------------
+  // 4. SUARA PIEZO BUZZER HARDWARE ESP32
+  // ----------------------------------------
+  playESP32Buzzer(mode = 'click') {
+    if (this.isMuted) return;
+    this.resume();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      // Sharp piezo buzzer 2800 Hz square wave
+      osc.type = 'square';
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      if (mode === 'critical') {
+        // 3 Rapid high-pitched chirps
+        osc.frequency.setValueAtTime(2900, now);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.type = 'square';
+        osc2.frequency.setValueAtTime(3200, now + 0.12);
+        gain2.gain.setValueAtTime(0.12, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+        osc2.connect(gain2); gain2.connect(this.ctx.destination);
+
+        osc.start(now); osc.stop(now + 0.11);
+        osc2.start(now + 0.12); osc2.stop(now + 0.23);
+      } else if (mode === 'warning') {
+        // Dual medium piezo beep
+        osc.frequency.setValueAtTime(2700, now);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.type = 'square';
+        osc2.frequency.setValueAtTime(2700, now + 0.16);
+        gain2.gain.setValueAtTime(0.08, now + 0.16);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc2.connect(gain2); gain2.connect(this.ctx.destination);
+
+        osc.start(now); osc.stop(now + 0.13);
+        osc2.start(now + 0.16); osc2.stop(now + 0.29);
+      } else if (mode === 'info') {
+        // Single pleasant beep
+        osc.frequency.setValueAtTime(1800, now);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.start(now); osc.stop(now + 0.16);
+      } else {
+        // Sensor click / telemetry packet ping
+        osc.frequency.setValueAtTime(3500, now);
+        gain.gain.setValueAtTime(0.03, now);
+        gain.gain.exponentialRampToValueAtTime(0.0005, now + 0.035);
+        osc.start(now); osc.stop(now + 0.04);
+      }
+    } catch (e) {
+      console.warn('Buzzer sound error:', e);
+    }
+  },
+
+  // Toggle Mute
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    state.isBuzzerActive = !this.isMuted;
+    if (this.isMuted) {
+      this.stopRain();
+      this.stopSiren();
+    } else {
+      this.resume();
+      if (state.rain > 0) this.updateRain(state.rain);
+      this.updateSiren(state.status);
+    }
+    return !this.isMuted;
   }
-}
+};
+
 
 // ==========================================
 // 1. THREE.JS ULTRA-HD ACRYLIC FLUME SCENE
@@ -1108,13 +1514,19 @@ function evaluateSystemStatus() {
   if (prevStatus !== state.status) {
     if (state.status === 'BAHAYA') {
       addIncident('P1', `BAHAYA: Deformasi geser lereng terkonfirmasi! (Pitch: ${state.pitch.toFixed(1)}°, Getar: ${state.vibration.toFixed(2)}g)`);
-      playBuzzerSound('P1');
+      SoundEngine.triggerLandslideRumble(1.0);  // Suara Gemuruh Runtuhan Tanah
+      SoundEngine.playESP32Buzzer('critical'); // Alarm Sensor di Alat ESP32
+      SoundEngine.updateSiren('BAHAYA');       // Sirene Alarm Evakuasi
     } else if (state.status === 'WASPADA') {
       addIncident('P2', `WASPADA: Tingkat kejenuhan tanah melampaui ambang batas (${state.moisture}%) dan terdeteksi deformasi mikro.`);
-      playBuzzerSound('P2');
+      SoundEngine.triggerLandslideRumble(0.45); // Suara Retakan Mikro Tanah
+      SoundEngine.playESP32Buzzer('warning');  // Beep Peringatan Sensor di Alat
+      SoundEngine.updateSiren('WASPADA');      // Peringatan Intermiten
       state.leadTimeSeconds = 1;
     } else if (state.status === 'AMAN') {
       addIncident('INFO', `STATUS NORMAL: Lereng maket stabil kembali (Pitch: ${state.pitch.toFixed(1)}°).`);
+      SoundEngine.playESP32Buzzer('info');
+      SoundEngine.updateSiren('AMAN');
       state.leadTimeSeconds = 0;
     }
   }
@@ -1306,6 +1718,7 @@ function applyScenario(scenarioName) {
     state.rain = 95;
     state.vibration = 0.85;
   }
+  SoundEngine.updateRain(state.rain);
   evaluateSystemStatus();
 }
 
@@ -1314,6 +1727,7 @@ function manualSliderChange() {
   state.moisture = parseInt(document.getElementById('slider-moist').value);
   state.rain = parseInt(document.getElementById('slider-rain').value);
   state.vibration = parseFloat(document.getElementById('slider-vibe').value);
+  SoundEngine.updateRain(state.rain);
   evaluateSystemStatus();
 }
 
@@ -1351,6 +1765,7 @@ function startAutoLoop() {
       state.pitch = 18.0 + Math.random() * 4;
       state.vibration = 0.75 + Math.random() * 0.2;
     }
+    SoundEngine.updateRain(state.rain);
     evaluateSystemStatus();
   }, 1000);
 }
@@ -1410,13 +1825,26 @@ tab2D.addEventListener('click', () => {
   threeControls.classList.add('hidden');
 });
 
-// Sound Toggle
+// Sound Toggle (Hujan, Gemuruh, Sirene, Sensor Piezo)
 const btnSound = document.getElementById('btn-sound');
-btnSound.addEventListener('click', () => {
-  state.isBuzzerActive = !state.isBuzzerActive;
-  document.getElementById('sound-icon').textContent = state.isBuzzerActive ? '🔔' : '🔕';
-  document.getElementById('sound-label').textContent = state.isBuzzerActive ? 'Buzzer: Aktif' : 'Buzzer: Mute';
-  btnSound.classList.toggle('text-rose-400', !state.isBuzzerActive);
+if (btnSound) {
+  btnSound.addEventListener('click', () => {
+    const isNowActive = SoundEngine.toggleMute();
+    document.getElementById('sound-icon').textContent = isNowActive ? '🔊' : '🔇';
+    document.getElementById('sound-label').textContent = isNowActive ? 'Audio: Aktif' : 'Audio: Mute';
+    btnSound.classList.toggle('text-rose-400', !isNowActive);
+    btnSound.classList.toggle('bg-rose-950/40', !isNowActive);
+    if (isNowActive) {
+      SoundEngine.playESP32Buzzer('click');
+    }
+  });
+}
+
+// Unlock Web Audio on first user interaction anywhere
+['click', 'touchstart', 'keydown'].forEach(evtType => {
+  window.addEventListener(evtType, () => {
+    SoundEngine.resume();
+  }, { once: true });
 });
 
 // Fullscreen

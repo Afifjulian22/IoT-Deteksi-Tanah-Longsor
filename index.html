@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistem Telemetri & Deteksi Dini Longsor | BPBD Purbalingga</title>
+  <title>Deteksi Dini Longsor</title>
   <!-- Tailwind CSS Local -->
   <script src="assets/js/tailwind.min.js"></script>
   <!-- Three.js & OrbitControls Local -->
@@ -43,7 +43,7 @@
           <h1 class="text-sm font-semibold tracking-wide text-white uppercase">Sistem Telemetri & Deteksi Dini Longsor</h1>
           <span class="px-1.5 py-0.5 text-[10px] font-mono text-slate-400 bg-slate-800 border border-slate-700 rounded">ESP32 &bull; MPU6050 &bull; RF</span>
         </div>
-        <p class="text-[11px] text-slate-400">Laboratorium Maket Geoteknik &bull; Target Kajian BPBD Kabupaten Purbalingga</p>
+        <p class="text-[11px] text-slate-400">Uji Coba/ simulasi</p>
       </div>
     </div>
 
@@ -59,9 +59,9 @@
 
     <!-- Right Controls -->
     <div class="flex items-center space-x-2">
-      <button id="btn-sound" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 flex items-center space-x-1.5 transition">
-        <span id="sound-icon">🔔</span>
-        <span id="sound-label">Buzzer: Aktif</span>
+      <button id="btn-sound" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 flex items-center space-x-1.5 transition" title="Toggle Efek Audio (Hujan, Gemuruh Tanah Longsor, Sirine Alarm, Buzzer Sensor)">
+        <span id="sound-icon">🔊</span>
+        <span id="sound-label">Audio: Aktif</span>
       </button>
       <button id="btn-toggle-demo" class="px-2.5 py-1 rounded bg-sky-700 hover:bg-sky-600 text-white text-xs font-medium border border-sky-600 transition">
         Panel Simulasi
