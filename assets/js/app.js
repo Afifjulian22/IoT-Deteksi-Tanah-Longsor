@@ -1982,6 +1982,18 @@ function setupCameraControls() {
       }
     });
   }
+
+  const btnLabels = document.getElementById('btn-toggle-labels');
+  if (btnLabels) {
+    let labelsVisible = true;
+    btnLabels.addEventListener('click', () => {
+      labelsVisible = !labelsVisible;
+      btnLabels.textContent = labelsVisible ? '🏷️ Label: On' : '🏷️ Label: Off';
+      btnLabels.classList.toggle('text-sky-300', labelsVisible);
+      btnLabels.classList.toggle('text-slate-400', !labelsVisible);
+      sensorSprites.forEach(sprite => { sprite.visible = labelsVisible; });
+    });
+  }
 }
 
 function onWindowResize() {
