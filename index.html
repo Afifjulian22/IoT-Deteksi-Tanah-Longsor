@@ -176,14 +176,31 @@
             </button>
           </div>
 
-          <div id="three-controls" class="flex items-center space-x-2 text-xs">
-            <button id="btn-reset-cam" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">
-              Reset Kamera
+          <div id="three-controls" class="flex items-center flex-wrap gap-1.5 text-xs">
+            <!-- Camera Preset View Angle Switcher -->
+            <div class="flex items-center bg-[#090c14] rounded border border-slate-700/80 p-0.5 space-x-0.5">
+              <button id="btn-view-iso" class="px-2 py-0.5 rounded bg-sky-700 text-white text-[11px] font-medium transition" title="Tampak 3D Isometrik Maket">
+                📐 3D Iso
+              </button>
+              <button id="btn-view-front" class="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 text-[11px] font-medium transition" title="Tampak Melintang Tembus Akrilik (Cross-Section)">
+                🔍 Akrilik Depan
+              </button>
+              <button id="btn-view-top" class="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 text-[11px] font-medium transition" title="Tampak Atas Maket">
+                🔝 Atas
+              </button>
+              <button id="btn-view-sensor" class="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 text-[11px] font-medium transition" title="Fokus Sensor ESP32">
+                🎯 Sensor
+              </button>
+            </div>
+            <button id="btn-toggle-acrylic" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-400 text-[11px] font-medium transition" title="Ganti Mode Tampilan Akrilik">
+              💎 Akrilik: HD
             </button>
-            <button id="btn-toggle-wire" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">
+            <button id="btn-toggle-wire" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] transition">
               Wireframe
             </button>
-            <span class="text-slate-500 text-[11px] hidden sm:inline">&bull; Putar (Drag) &bull; Zoom (Scroll)</span>
+            <button id="btn-reset-cam" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] transition" title="Kembalikan Sudut Kamera">
+              ↺ Reset
+            </button>
           </div>
         </div>
 
@@ -194,14 +211,20 @@
 
           <!-- Technical HUD Overlay -->
           <div class="absolute top-3 left-3 pointer-events-none flex flex-col space-y-1 text-[11px] font-mono">
-            <div class="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-800 text-slate-300">
-              Geometri: <span class="text-sky-400">Lereng Kemiringan Alam (Slope 32°)</span>
+            <div class="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-800 text-slate-300 flex items-center space-x-1.5 shadow">
+              <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+              <span>Maket: <strong class="text-sky-300">Flume Akrilik Transparan (60×30×40 cm)</strong></span>
             </div>
-            <div class="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-800 text-slate-300">
-              Sensor Probe: <span id="hud-node-status" class="text-emerald-400">ESP32-NODE-01 (Stabil)</span>
+            <div class="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-800 text-slate-300 flex items-center space-x-1.5 shadow">
+              <span class="text-slate-400">Dinding:</span>
+              <span class="text-slate-300">Akrilik PMMA 5mm &bull; Gratikul cm Terukir</span>
             </div>
-            <div id="hud-shear-warning" class="hidden px-2 py-0.5 rounded bg-rose-950/90 border border-rose-700 text-rose-300">
-              ⚠️ Deformasi Geser Masif (Rotational Failure)
+            <div class="px-2 py-0.5 rounded bg-slate-900/90 border border-slate-800 text-slate-300 flex items-center space-x-1.5 shadow">
+              <span class="text-slate-400">Sensor Probe:</span>
+              <span id="hud-node-status" class="text-emerald-400 font-bold">ESP32-NODE-01 (Stabil)</span>
+            </div>
+            <div id="hud-shear-warning" class="hidden px-2 py-0.5 rounded bg-rose-950/90 border border-rose-700 text-rose-300 font-bold animate-pulse shadow">
+              ⚠️ Deformasi Geser Masif (Rotational Failure Aktif)
             </div>
           </div>
 
