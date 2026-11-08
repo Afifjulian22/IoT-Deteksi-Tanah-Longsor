@@ -1,3 +1,741 @@
+
+// ==========================================
+// DETAILED SENSOR 3D MODELS & WIRING HARNESS
+// ==========================================
+
+let interactiveSensors = [];
+let sensorSprites = [];
+let raycaster, mouse;
+
+// Procedural Texture for ESP32 DOIT DevKit V1
+function createESP32Texture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Matte Black PCB Board
+  ctx.fillStyle = '#0b0f19';
+  ctx.fillRect(0, 0, 512, 256);
+
+  // Gold circuit traces
+  ctx.strokeStyle = '#d97706';
+  ctx.lineWidth = 1.5;
+  for (let y = 30; y < 230; y += 18) {
+    ctx.beginPath();
+    ctx.moveTo(100, y); ctx.lineTo(160, y);
+    ctx.lineTo(200, y + 10); ctx.lineTo(440, y + 10);
+    ctx.stroke();
+  }
+
+  // Silver ESP-WROOM-32 Metal RF Shield
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillRect(160, 48, 220, 160);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(160, 48, 220, 160);
+
+  // Laser Engraved text on RF shield
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 16px "JetBrains Mono", monospace';
+  ctx.fillText('Espressif', 180, 85);
+  ctx.font = 'bold 20px "JetBrains Mono", monospace';
+  ctx.fillText('ESP-WROOM-32', 180, 115);
+  ctx.font = '11px "JetBrains Mono", monospace';
+  ctx.fillText('Wi-Fi + BT + BLE MCU Module', 180, 138);
+  ctx.fillText('FCC ID: 2AC7Z-ESPWROOM32', 180, 158);
+  ctx.fillText('CE 0700  RoHS', 180, 178);
+
+  // PCB Antenna serpentine trace at left of shield
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(400, 58, 70, 140);
+  ctx.strokeStyle = '#d97706';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let y = 68; y < 190; y += 16) {
+    ctx.moveTo(410, y); ctx.lineTo(460, y);
+    ctx.lineTo(460, y + 8); ctx.lineTo(410, y + 8);
+  }
+  ctx.stroke();
+
+  // Micro-USB Port at bottom edge
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillRect(30, 98, 50, 60);
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(45, 110, 20, 36);
+
+  // Tactile Buttons: EN (Reset) & BOOT
+  ctx.fillStyle = '#64748b';
+  ctx.fillRect(100, 50, 30, 24);
+  ctx.fillRect(100, 182, 30, 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 10px monospace';
+  ctx.fillText('EN', 106, 66);
+  ctx.fillText('BOOT', 101, 198);
+
+  // Pin Labels along Top & Bottom long edges
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 9px monospace';
+  const topPins = ['3V3', 'EN', 'VP', 'VN', '34', '35', '32', '33', '25', '26', '27', '14', '12', 'GND', '13'];
+  const botPins = ['VIN', 'GND', '15', '2', '4', '16', '17', '5', '18', '19', '21', '3', '1', '22', '23'];
+
+  topPins.forEach((pin, i) => {
+    ctx.fillText(pin, 120 + i * 24, 28);
+  });
+  botPins.forEach((pin, i) => {
+    ctx.fillText(pin, 120 + i * 24, 242);
+  });
+
+  // LEDs: Red Power LED & Blue GPIO 2 LED
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath(); ctx.arc(140, 115, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#38bdf8';
+  ctx.beginPath(); ctx.arc(140, 140, 6, 0, Math.PI * 2); ctx.fill();
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// Procedural Texture for InvenSense MPU-6050 (GY-521 Module)
+function createMPU6050Texture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Characteristic Cyan/Turquoise Blue Solder Mask
+  ctx.fillStyle = '#0284c7';
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Gold connector pin rings
+  ctx.fillStyle = '#f59e0b';
+  for (let i = 0; i < 8; i++) {
+    const y = 24 + i * 28;
+    ctx.beginPath(); ctx.arc(28, y, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0b0f19';
+    ctx.beginPath(); ctx.arc(28, y, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+  }
+
+  // Pin Labels in crisp white
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
+  const pins = ['VCC', 'GND', 'SCL', 'SDA', 'XDA', 'XCL', 'AD0', 'INT'];
+  pins.forEach((p, i) => {
+    ctx.fillText(p, 46, 28 + i * 28);
+  });
+
+  // Black QFN MPU-6050 Chip
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(125, 78, 100, 100);
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(125, 78, 100, 100);
+
+  // Pin 1 dot and chip labeling
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath(); ctx.arc(135, 88, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.font = 'bold 11px monospace';
+  ctx.fillText('INVENSENSE', 135, 118);
+  ctx.fillText('MPU-6050', 138, 136);
+
+  // Module Model Title
+  ctx.fillStyle = '#e0f2fe';
+  ctx.font = 'bold 13px "JetBrains Mono", monospace';
+  ctx.fillText('GY-521', 140, 45);
+
+  // Green SMD Power LED
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(195, 205, 18, 12);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// Procedural Texture for Capacitive Soil Moisture Sensor v1.2
+function createMoistureSensorTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  // Matte Black Board
+  ctx.fillStyle = '#111827';
+  ctx.fillRect(0, 0, 256, 512);
+
+  // Top header section with white text
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 13px "JetBrains Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Capacitive Soil', 128, 45);
+  ctx.fillText('Moisture Sensor v1.2', 128, 65);
+
+  // White 3-Pin JST Connector Graphic
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(68, 85, 120, 45);
+  ctx.fillStyle = '#d97706';
+  for (let i = 0; i < 3; i++) {
+    ctx.fillRect(88 + i * 36, 95, 8, 25);
+  }
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px monospace';
+  ctx.fillText('VCC GND AOUT', 128, 148);
+
+  // TL555 Timer IC Chip
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(100, 160, 56, 40);
+  ctx.fillStyle = '#64748b';
+  ctx.font = '9px monospace';
+  ctx.fillText('TLC555', 128, 185);
+
+  // Dual Capacitive Blade Cutout (middle gap)
+  ctx.fillStyle = '#030712';
+  ctx.fillRect(116, 230, 24, 260);
+
+  // Depth Measurement Graduation Marks (10mm, 20mm, 30mm, 40mm)
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 2;
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 10px monospace';
+  for (let d = 1; d <= 4; d++) {
+    const y = 240 + d * 60;
+    ctx.beginPath();
+    ctx.moveTo(35, y); ctx.lineTo(65, y);
+    ctx.moveTo(191, y); ctx.lineTo(221, y);
+    ctx.stroke();
+    ctx.fillText(`${d * 10}mm`, 85, y + 3);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// Procedural Texture for Raindrop Sensor Board (Serpentine Traces)
+function createRainSensorTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Blue FR4 Board
+  ctx.fillStyle = '#0369a1';
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Border & Mounting Holes
+  ctx.fillStyle = '#f59e0b';
+  [[20, 20], [236, 20], [20, 236], [236, 236]].forEach(([hx, hy]) => {
+    ctx.beginPath(); ctx.arc(hx, hy, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0284c7';
+    ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+  });
+
+  // Interleaved Nickel/Gold Serpentine Zigzag Lines
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 4;
+  for (let y = 45; y < 220; y += 14) {
+    ctx.beginPath();
+    ctx.moveTo(40, y);
+    ctx.lineTo(216, y);
+    ctx.stroke();
+  }
+
+  // Header pins at top
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(116, 12, 24, 18);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// 3D Floating Interactive Pin/Badge Generator
+function create3DAnnotationBadge(icon, label, colorHex = '#38bdf8') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+
+  // Pill rounded background
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+  ctx.strokeStyle = colorHex;
+  ctx.lineWidth = 3;
+
+  const r = 36;
+  ctx.beginPath();
+  ctx.roundRect(10, 10, 364, 108, r);
+  ctx.fill();
+  ctx.stroke();
+
+  // Icon
+  ctx.font = '34px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(icon, 30, 72);
+
+  // Label
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 24px "JetBrains Mono", sans-serif';
+  ctx.fillText(label, 85, 70);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: false
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.1, 0.38, 1);
+  return sprite;
+}
+
+// Build 3D Wiring Cables with realistic draping
+function createWireHarness(points, colorHex, radius = 0.014) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const geo = new THREE.TubeGeometry(curve, 32, radius, 8, false);
+  const mat = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    roughness: 0.5,
+    metalness: 0.2
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+
+// ==========================================
+// PHYSICAL IOT HARDWARE SENSORS & INSTRUMENTS
+// ==========================================
+let esp32NodeMesh, mpu6050Mesh, soilSensorMesh, rainSensorMesh, sirenBeaconMesh;
+let esp32LedBlue, sirenStrobeLight;
+
+function buildAllDetailedSensors() {
+  interactiveSensors = [];
+  sensorSprites = [];
+
+  // ----------------------------------------
+  // 1. ESP32 DOIT DEVKIT V1 (Central Node)
+  // ----------------------------------------
+  // Mounted on clear acrylic laboratory side-bracket on the flume rim
+  const esp32Group = new THREE.Group();
+  esp32Group.position.set(-2.75, 2.45, -0.7);
+  esp32Group.rotation.y = Math.PI / 2;
+  slopeGroup.add(esp32Group);
+
+  // Acrylic Mounting Standoff Plate
+  const mountPlateGeo = new THREE.BoxGeometry(0.72, 0.42, 0.04);
+  const mountPlateMat = new THREE.MeshPhysicalMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.7,
+    transmission: 0.9,
+    roughness: 0.1
+  });
+  const mountPlate = new THREE.Mesh(mountPlateGeo, mountPlateMat);
+  mountPlate.position.z = -0.025;
+  esp32Group.add(mountPlate);
+
+  // 4 Brass Standoffs
+  const standoffGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.04, 8);
+  const standoffMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9 });
+  [[-0.28, -0.16], [0.28, -0.16], [-0.28, 0.16], [0.28, 0.16]].forEach(([sx, sy]) => {
+    const st = new THREE.Mesh(standoffGeo, standoffMat);
+    st.rotation.x = Math.PI / 2;
+    st.position.set(sx, sy, 0);
+    esp32Group.add(st);
+  });
+
+  // ESP32 Main PCB Board
+  const espBoardGeo = new THREE.BoxGeometry(0.58, 0.30, 0.025);
+  const espBoardMat = new THREE.MeshStandardMaterial({
+    map: createESP32Texture(),
+    roughness: 0.4,
+    metalness: 0.3
+  });
+  esp32NodeMesh = new THREE.Mesh(espBoardGeo, espBoardMat);
+  esp32NodeMesh.position.z = 0.025;
+  esp32NodeMesh.userData = { sensorKey: 'esp32', name: 'ESP32 DOIT DevKit V1 (Main MCU)' };
+  esp32Group.add(esp32NodeMesh);
+  interactiveSensors.push(esp32NodeMesh);
+
+  // Dual Header Pin Strips (Black plastic + gold contacts)
+  const headerGeo = new THREE.BoxGeometry(0.48, 0.035, 0.05);
+  const headerMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
+  const hTop = new THREE.Mesh(headerGeo, headerMat); hTop.position.set(0.02, 0.13, 0.04); esp32Group.add(hTop);
+  const hBot = new THREE.Mesh(headerGeo, headerMat); hBot.position.set(0.02, -0.13, 0.04); esp32Group.add(hBot);
+
+  // ESP32 Blue Telemetry Status LED (GPIO 2)
+  const blueLedGeo = new THREE.SphereGeometry(0.02, 8, 8);
+  const blueLedMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+  esp32LedBlue = new THREE.Mesh(blueLedGeo, blueLedMat);
+  esp32LedBlue.position.set(-0.16, 0.02, 0.045);
+  esp32Group.add(esp32LedBlue);
+
+  // Badge 3D Pin for ESP32
+  const badgeESP = create3DAnnotationBadge('💻', 'ESP32 Gateway', '#38bdf8');
+  badgeESP.position.set(0, 0.32, 0.08);
+  badgeESP.userData = { sensorKey: 'esp32' };
+  esp32Group.add(badgeESP);
+  sensorSprites.push(badgeESP);
+
+  // ----------------------------------------
+  // 2. MPU-6050 INCLINOMETER PROBE (In-Slope)
+  // ----------------------------------------
+  // Driven into the active sliding mass on the slope
+  const mpuGroup = new THREE.Group();
+  mpuGroup.position.set(0.05, 0.55, 0.25);
+  slidingSoilWedge.add(mpuGroup);
+
+  // Stainless Steel Ground Stake Probe Rod
+  const stakeGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.85, 16);
+  const stakeMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.9, roughness: 0.2 });
+  const stakeRod = new THREE.Mesh(stakeGeo, stakeMat);
+  stakeRod.position.y = -0.15;
+  stakeRod.castShadow = true;
+  mpuGroup.add(stakeRod);
+
+  // Transparent Acrylic Cylindrical Capsule Sleeve
+  const capsuleGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.36, 16);
+  const capsuleMat = new THREE.MeshPhysicalMaterial({
+    color: 0xe0f2fe,
+    transparent: true,
+    opacity: 0.75,
+    transmission: 0.92,
+    roughness: 0.08,
+    depthWrite: false
+  });
+  const capsule = new THREE.Mesh(capsuleGeo, capsuleMat);
+  capsule.position.y = 0.36;
+  mpuGroup.add(capsule);
+
+  // MPU-6050 Cyan PCB Board Inside Capsule
+  const mpuGeo = new THREE.BoxGeometry(0.24, 0.24, 0.02);
+  const mpuMat = new THREE.MeshStandardMaterial({
+    map: createMPU6050Texture(),
+    roughness: 0.3,
+    metalness: 0.4
+  });
+  mpu6050Mesh = new THREE.Mesh(mpuGeo, mpuMat);
+  mpu6050Mesh.position.y = 0.36;
+  mpu6050Mesh.userData = { sensorKey: 'mpu6050', name: 'MPU-6050 Gyro/Inclinometer (GY-521)' };
+  mpuGroup.add(mpu6050Mesh);
+  interactiveSensors.push(mpu6050Mesh);
+
+  // Mini Status LED on MPU
+  const mpuLedGeo = new THREE.SphereGeometry(0.02, 8, 8);
+  const mpuLedMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+  sensorLedMesh = new THREE.Mesh(mpuLedGeo, mpuLedMat);
+  sensorLedMesh.position.set(0.07, 0.44, 0.02);
+  mpuGroup.add(sensorLedMesh);
+
+  // External RF Whip Antenna on Capsule
+  const antGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.32, 8);
+  const antMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9 });
+  const ant = new THREE.Mesh(antGeo, antMat);
+  ant.position.set(0.08, 0.65, 0);
+  mpuGroup.add(ant);
+
+  // Badge 3D Pin for MPU-6050
+  const badgeMPU = create3DAnnotationBadge('🧭', 'MPU-6050 Lereng', '#0284c7');
+  badgeMPU.position.set(0, 0.72, 0);
+  badgeMPU.userData = { sensorKey: 'mpu6050' };
+  mpuGroup.add(badgeMPU);
+  sensorSprites.push(badgeMPU);
+
+  // ----------------------------------------
+  // 3. CAPACITIVE SOIL MOISTURE SENSOR v1.2
+  // ----------------------------------------
+  // Inserted in soil strata, flush with front transparent acrylic wall
+  const soilGroup = new THREE.Group();
+  soilGroup.position.set(0.85, 1.05, 1.20);
+  slopeGroup.add(soilGroup);
+
+  const soilPcbGeo = new THREE.BoxGeometry(0.18, 0.48, 0.018);
+  const soilPcbMat = new THREE.MeshStandardMaterial({
+    map: createMoistureSensorTexture(),
+    roughness: 0.4,
+    metalness: 0.2
+  });
+  soilSensorMesh = new THREE.Mesh(soilPcbGeo, soilPcbMat);
+  soilSensorMesh.userData = { sensorKey: 'soil', name: 'Capacitive Soil Moisture Sensor v1.2' };
+  soilGroup.add(soilSensorMesh);
+  interactiveSensors.push(soilSensorMesh);
+
+  // White 3-Pin JST Connector at top
+  const jstGeo = new THREE.BoxGeometry(0.09, 0.04, 0.04);
+  const jstMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+  const jst = new THREE.Mesh(jstGeo, jstMat);
+  jst.position.y = 0.22;
+  soilGroup.add(jst);
+
+  // Badge 3D Pin for Soil Sensor
+  const badgeSoil = create3DAnnotationBadge('🌱', 'Kelembapan v1.2', '#10b981');
+  badgeSoil.position.set(0, 0.42, 0.05);
+  badgeSoil.userData = { sensorKey: 'soil' };
+  soilGroup.add(badgeSoil);
+  sensorSprites.push(badgeSoil);
+
+  // ----------------------------------------
+  // 4. RAINDROP SENSOR & LM393 COMPARATOR
+  // ----------------------------------------
+  // Mounted on rain catchment bracket under spray manifold
+  const rainGroup = new THREE.Group();
+  rainGroup.position.set(-1.35, 2.72, 0.9);
+  slopeGroup.add(rainGroup);
+
+  // Rain Catchment Sensing Grid Plate
+  const rainPcbGeo = new THREE.BoxGeometry(0.36, 0.28, 0.02);
+  const rainPcbMat = new THREE.MeshStandardMaterial({
+    map: createRainSensorTexture(),
+    roughness: 0.3,
+    metalness: 0.6
+  });
+  rainSensorMesh = new THREE.Mesh(rainPcbGeo, rainPcbMat);
+  rainSensorMesh.rotation.x = -Math.PI / 6; // Angled rain catchment
+  rainSensorMesh.userData = { sensorKey: 'rain', name: 'Raindrop Sensor Board & LM393' };
+  rainGroup.add(rainSensorMesh);
+  interactiveSensors.push(rainSensorMesh);
+
+  // Small LM393 Module Board beside it
+  const lm393Geo = new THREE.BoxGeometry(0.18, 0.12, 0.02);
+  const lm393Mat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
+  const lm393 = new THREE.Mesh(lm393Geo, lm393Mat);
+  lm393.position.set(0.32, 0.02, 0);
+  rainGroup.add(lm393);
+
+  // Blue potentiometer trimmer on LM393
+  const potGeo = new THREE.BoxGeometry(0.04, 0.04, 0.03);
+  const potMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
+  const pot = new THREE.Mesh(potGeo, potMat);
+  pot.position.set(0.32, 0.02, 0.02);
+  rainGroup.add(pot);
+
+  // Badge 3D Pin for Rain Sensor
+  const badgeRain = create3DAnnotationBadge('🌧️', 'Sensor Hujan', '#60a5fa');
+  badgeRain.position.set(0, 0.35, 0);
+  badgeRain.userData = { sensorKey: 'rain' };
+  rainGroup.add(badgeRain);
+  sensorSprites.push(badgeRain);
+
+  // ----------------------------------------
+  // 5. INDUSTRIAL SIREN BEACON & PIEZO BUZZER
+  // ----------------------------------------
+  // Mounted on corner structural post of the aquarium
+  const sirenGroup = new THREE.Group();
+  sirenGroup.position.set(-2.9, 2.85, 1.25);
+  slopeGroup.add(sirenGroup);
+
+  // Black Piezo Buzzer Module
+  const buzzerGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.06, 16);
+  const buzzerMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.3 });
+  const buzzer = new THREE.Mesh(buzzerGeo, buzzerMat);
+  buzzer.position.set(0, 0, 0);
+  buzzer.userData = { sensorKey: 'siren', name: 'Piezo Buzzer & Emergency Siren' };
+  sirenGroup.add(buzzer);
+  interactiveSensors.push(buzzer);
+
+  // Buzzer sound hole
+  const holeGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.062, 8);
+  const holeMat = new THREE.MeshBasicMaterial({ color: 0x1e293b });
+  const hole = new THREE.Mesh(holeGeo, holeMat);
+  hole.position.y = 0.005;
+  buzzer.add(hole);
+
+  // Red Strobe Siren Dome Lens
+  const sirenDomeGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.14, 16);
+  const sirenDomeMat = new THREE.MeshPhysicalMaterial({
+    color: 0xef4444,
+    transparent: true,
+    opacity: 0.85,
+    roughness: 0.1,
+    transmission: 0.8,
+    clearcoat: 1.0
+  });
+  sirenBeaconMesh = new THREE.Mesh(sirenDomeGeo, sirenDomeMat);
+  sirenBeaconMesh.position.set(0, 0.11, 0);
+  sirenBeaconMesh.userData = { sensorKey: 'siren', name: 'Emergency Strobe Beacon' };
+  sirenGroup.add(sirenBeaconMesh);
+  interactiveSensors.push(sirenBeaconMesh);
+
+  // Siren Spotlight Glow Point
+  sirenStrobeLight = new THREE.PointLight(0xef4444, 0, 3);
+  sirenStrobeLight.position.set(0, 0.12, 0);
+  sirenGroup.add(sirenStrobeLight);
+
+  // Badge 3D Pin for Siren
+  const badgeSiren = create3DAnnotationBadge('🚨', 'Sirine & Alarm', '#ef4444');
+  badgeSiren.position.set(0, 0.35, 0);
+  badgeSiren.userData = { sensorKey: 'siren' };
+  sirenGroup.add(badgeSiren);
+  sensorSprites.push(badgeSiren);
+
+  // ----------------------------------------
+  // 6. REALISTIC JUMPER WIRING HARNESSES (DuPont Cables)
+  // ----------------------------------------
+  // Cable 1: MPU-6050 to ESP32 (Rainbow ribbon cable along top acrylic rim)
+  const mpuWire = createWireHarness([
+    new THREE.Vector3(0.05, 2.3, 0.25),
+    new THREE.Vector3(-0.8, 2.78, 0.4),
+    new THREE.Vector3(-2.2, 2.78, 0.1),
+    new THREE.Vector3(-2.75, 2.55, -0.6)
+  ], 0x38bdf8, 0.012);
+  slopeGroup.add(mpuWire);
+
+  // Cable 2: Soil Moisture Sensor to ESP32 (along front glass rim)
+  const soilWire = createWireHarness([
+    new THREE.Vector3(0.85, 1.35, 1.20),
+    new THREE.Vector3(0.4, 1.8, 1.25),
+    new THREE.Vector3(-1.8, 2.78, 1.25),
+    new THREE.Vector3(-2.75, 2.50, -0.6)
+  ], 0x10b981, 0.012);
+  slopeGroup.add(soilWire);
+
+  // Cable 3: Rain Sensor to ESP32
+  const rainWire = createWireHarness([
+    new THREE.Vector3(-1.25, 2.75, 0.9),
+    new THREE.Vector3(-2.0, 2.78, 0.7),
+    new THREE.Vector3(-2.75, 2.52, -0.6)
+  ], 0xf59e0b, 0.012);
+  slopeGroup.add(rainWire);
+
+  // Cable 4: ESP32 to Siren / Buzzer
+  const sirenWire = createWireHarness([
+    new THREE.Vector3(-2.75, 2.45, -0.5),
+    new THREE.Vector3(-2.88, 2.78, 0.2),
+    new THREE.Vector3(-2.9, 2.85, 1.2)
+  ], 0xef4444, 0.014);
+  slopeGroup.add(sirenWire);
+
+  // Setup Raycasting for 3D Click Interaction
+  setupSensorRaycaster();
+}
+
+// Raycaster for Clicking 3D Sensor Models and Pins
+function setupSensorRaycaster() {
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  const container = document.getElementById('three-container');
+  if (!container) return;
+
+  container.addEventListener('click', (event) => {
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const targets = [...interactiveSensors, ...sensorSprites];
+    const intersects = raycaster.intersectObjects(targets, true);
+
+    if (intersects.length > 0) {
+      let hitObj = intersects[0].object;
+      while (hitObj && !hitObj.userData.sensorKey && hitObj.parent) {
+        hitObj = hitObj.parent;
+      }
+      if (hitObj && hitObj.userData.sensorKey) {
+        openSensorDetails(hitObj.userData.sensorKey);
+      }
+    }
+  });
+
+  // Cursor pointer on hover over sensor
+  container.addEventListener('mousemove', (event) => {
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects([...interactiveSensors, ...sensorSprites], true);
+    container.style.cursor = intersects.length > 0 ? 'pointer' : 'default';
+  });
+}
+
+// Focus Camera on specific sensor and open its details
+function focusSensor(sensorKey) {
+  let targetPos, targetLook;
+  if (sensorKey === 'esp32') {
+    targetPos = new THREE.Vector3(-4.8, 3.4, -0.6);
+    targetLook = new THREE.Vector3(-2.75, 2.45, -0.7);
+  } else if (sensorKey === 'mpu6050') {
+    targetPos = new THREE.Vector3(1.2, 3.2, 1.8);
+    targetLook = new THREE.Vector3(0.05, 2.2, 0.25);
+  } else if (sensorKey === 'soil') {
+    targetPos = new THREE.Vector3(1.6, 1.6, 3.2);
+    targetLook = new THREE.Vector3(0.85, 1.1, 1.20);
+  } else if (sensorKey === 'rain') {
+    targetPos = new THREE.Vector3(-1.35, 4.2, 2.4);
+    targetLook = new THREE.Vector3(-1.35, 2.7, 0.9);
+  } else if (sensorKey === 'siren') {
+    targetPos = new THREE.Vector3(-4.2, 3.8, 2.6);
+    targetLook = new THREE.Vector3(-2.9, 2.85, 1.25);
+  }
+
+  if (targetPos && targetLook) {
+    state.cameraTarget = { pos: targetPos, look: targetLook };
+  }
+  openSensorDetails(sensorKey);
+}
+
+// Open Detailed Hardware Inspector Card
+function openSensorDetails(sensorKey) {
+  SoundEngine.playESP32Buzzer('click');
+  const modal = document.getElementById('device-modal');
+  if (!modal) return;
+
+  const data = {
+    esp32: {
+      name: 'ESP32 DOIT DevKit V1 (Main Gateway)',
+      loc: 'Bracket Akrilik Sisi Kiri Atas Maket (Terlindung Air)',
+      pwr: '5.0V USB Micro-B (AMS1117 3.3V LDO Regulated)',
+      gpio: 'GPIO 21 (SDA), GPIO 22 (SCL), GPIO 34 (ADC1), GPIO 2 (LED)',
+      telemetry: `Status: Online (50Hz) • Pitch: ${state.pitch.toFixed(1)}° • IP: 192.168.4.1`,
+      desc: 'Pusat komputasi maket geoteknik: memproses data DMP dari MPU6050, membaca kelembapan kapasitif, serta memicu sirene alarm secara otomatis.'
+    },
+    mpu6050: {
+      name: 'InvenSense MPU-6050 Inclinometer (GY-521)',
+      loc: 'Pasak Tabung Akrilik Tertancap di Bidang Gelincir Tanah',
+      pwr: '3.3V VCC via ESP32 Pin 3V3',
+      gpio: 'I2C Bus: SDA -> GPIO 21 | SCL -> GPIO 22 | INT -> GPIO 19',
+      telemetry: `Pitch: ${state.pitch.toFixed(1)}° | Roll: ${state.roll.toFixed(1)}° | Getar: ${state.vibration.toFixed(2)}g`,
+      desc: 'Sensor kemiringan 6-DoF dengan Digital Motion Processor (DMP) terkalibrasi untuk mendeteksi rotasi keruntuhan lereng.'
+    },
+    soil: {
+      name: 'Capacitive Soil Moisture Sensor v1.2',
+      loc: 'Tertancap di Lapisan Tanah Tengah (Tembus Pandang Akrilik)',
+      pwr: '3.3V VCC (Anti-Korosi Kapasitif Non-Elektrolisis)',
+      gpio: 'Analog Out -> ESP32 ADC1_CH6 (GPIO 34)',
+      telemetry: `Kelembapan (VWC): ${state.moisture}% (Ambang Jenuh: >70%)`,
+      desc: 'Mendeteksi infiltrasi air hujan ke pori-pori tanah tanpa korosi logam berkat lapisan isolasi solder-mask.'
+    },
+    rain: {
+      name: 'Raindrop Sensor Plate & LM393 Comparator',
+      loc: 'Penampung Air Atas Maket (Di Bawah Nozzle Semprotan)',
+      pwr: '5.0V VCC • Output Dual (Digital DO & Analog AO)',
+      gpio: 'Digital Out -> GPIO 4 | Analog Out -> GPIO 35 (ADC1)',
+      telemetry: `Curah Hujan: ${state.rain}% (${state.rain > 0 ? 'Aktif' : 'Off'})`,
+      desc: 'Plat sensor berpola nikel interdigitasi untuk mendeteksi rintik hujan buatan dari manifold semprotan laboratorium.'
+    },
+    siren: {
+      name: 'Piezo Buzzer & High-Intensity Strobe Beacon',
+      loc: 'Tiang Rangka Sudut Akrilik Depan Kiri Maket',
+      pwr: '5.0V Drive via Transistor NPN / Optocoupler',
+      gpio: 'Control Pin -> ESP32 GPIO 23 (Active High)',
+      telemetry: `Status Alarm: ${state.status === 'BAHAYA' ? 'AKTIF (STROBE ON)' : 'STANDBY'}`,
+      desc: 'Indikator peringatan dini suara melolong keras dan lampu suar strobo merah untuk simulasi evakuasi warga.'
+    }
+  };
+
+  const info = data[sensorKey] || data.esp32;
+  document.getElementById('modal-sensor-title').textContent = info.name;
+  document.getElementById('modal-sensor-loc').textContent = info.loc;
+  document.getElementById('modal-sensor-pwr').textContent = info.pwr;
+  document.getElementById('modal-sensor-gpio').textContent = info.gpio;
+  document.getElementById('modal-sensor-telem').textContent = info.telemetry;
+  document.getElementById('modal-sensor-desc').textContent = info.desc;
+
+  modal.classList.remove('hidden');
+}
+
 /**
  * Sistem Telemetri & Deteksi Dini Longsor (Digital Twin 3D Maket Akrilik HD)
  * Laboratorium Geoteknik & IoT ESP32 - BPBD Purbalingga
@@ -918,67 +1656,8 @@ function buildRealisticSlope() {
     turfMesh.add(pin);
   }
 
-  // 4. Physical IoT Sensor Node (ESP32 DOIT DevKit V1 Smart Probe)
-  const stakeGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.75, 16);
-  const stakeMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.85, roughness: 0.25 });
-  sensorStakeMesh = new THREE.Mesh(stakeGeo, stakeMat);
-  sensorStakeMesh.position.set(0.1, 0.52, 0.3);
-  sensorStakeMesh.castShadow = true;
-  slidingSoilWedge.add(sensorStakeMesh);
-
-  // Weatherproof IP67 Enclosure with Smoked Acrylic Lid
-  const boxBaseGeo = new THREE.BoxGeometry(0.22, 0.16, 0.15);
-  const boxBaseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
-  const boxBase = new THREE.Mesh(boxBaseGeo, boxBaseMat);
-  boxBase.position.y = 0.38;
-  sensorStakeMesh.add(boxBase);
-
-  // Circuit board inside visible through translucent lid
-  const pcbGeo = new THREE.BoxGeometry(0.18, 0.02, 0.12);
-  const pcbMat = new THREE.MeshStandardMaterial({ map: createPCBTexture(), roughness: 0.6 });
-  const pcb = new THREE.Mesh(pcbGeo, pcbMat);
-  pcb.position.set(0, 0.44, 0);
-  sensorStakeMesh.add(pcb);
-
-  // Clear poly lid
-  const lidGeo = new THREE.BoxGeometry(0.224, 0.03, 0.154);
-  const lidMat = new THREE.MeshPhysicalMaterial({
-    color: 0x94a3b8,
-    transparent: true,
-    opacity: 0.65,
-    roughness: 0.1,
-    transmission: 0.85
-  });
-  const lid = new THREE.Mesh(lidGeo, lidMat);
-  lid.position.set(0, 0.47, 0);
-  sensorStakeMesh.add(lid);
-
-  // Whip Antenna
-  const antGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.25, 8);
-  const antMat = new THREE.MeshStandardMaterial({ color: 0x09090b, metalness: 0.95 });
-  const antMesh = new THREE.Mesh(antGeo, antMat);
-  antMesh.position.set(0.08, 0.58, 0);
-  sensorStakeMesh.add(antMesh);
-
-  // Status LED Beacon on Box
-  const ledGeo = new THREE.SphereGeometry(0.035, 16, 16);
-  const ledMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
-  sensorLedMesh = new THREE.Mesh(ledGeo, ledMat);
-  sensorLedMesh.position.set(-0.06, 0.46, 0.078);
-  sensorStakeMesh.add(sensorLedMesh);
-
-  // Capacitive Soil Moisture Sensor (v1.2 FR4 PCB embedded in soil, visible through acrylic)
-  const probeGeo = new THREE.BoxGeometry(0.08, 0.35, 0.015);
-  const probeMat = new THREE.MeshStandardMaterial({ color: 0x15803d, metalness: 0.6, roughness: 0.4 });
-  const soilProbe = new THREE.Mesh(probeGeo, probeMat);
-  soilProbe.position.set(0.65, 0.95, 1.15); // Mounted close to front acrylic wall
-  slopeGroup.add(soilProbe);
-
-  // Gold prongs on probe
-  const prongGeo = new THREE.BoxGeometry(0.02, 0.18, 0.018);
-  const prongMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9 });
-  const p1 = new THREE.Mesh(prongGeo, prongMat); p1.position.set(-0.02, -0.06, 0); soilProbe.add(p1);
-  const p2 = new THREE.Mesh(prongGeo, prongMat); p2.position.set(0.02, -0.06, 0); soilProbe.add(p2);
+  // 4. Physical Real-World IoT Sensor Instruments (ESP32, MPU6050, Capacitive Soil v1.2, Raindrop, Siren)
+  buildAllDetailedSensors();
 
   // 5. Tension Failure Crack Line (Exposed shear scarp)
   const crackCurve = new THREE.CatmullRomCurve3([
@@ -1371,7 +2050,7 @@ function animate() {
     piezometerFluid.position.y = 0.5 + (state.moisture / 100) * 0.65;
   }
 
-  // LED Beacon on ESP32 Sensor
+  // LED Beacon on MPU-6050 & ESP32 Blue Telemetry LED
   if (sensorLedMesh) {
     if (state.status === 'BAHAYA') {
       sensorLedMesh.material.color.setHex(0xef4444);
@@ -1382,6 +2061,19 @@ function animate() {
     } else {
       sensorLedMesh.material.color.setHex(0x10b981);
       sensorLedMesh.visible = true;
+    }
+  }
+  if (esp32LedBlue) {
+    esp32LedBlue.visible = (Math.sin(time * 10) > -0.2); // Blinking telemetry transmission
+  }
+  if (sirenStrobeLight && sirenBeaconMesh) {
+    if (state.status === 'BAHAYA') {
+      const strobe = Math.sin(time * 16) > 0 ? 3.5 : 0.2;
+      sirenStrobeLight.intensity = strobe;
+      sirenBeaconMesh.material.color.setHex(strobe > 1 ? 0xffffff : 0xef4444);
+    } else {
+      sirenStrobeLight.intensity = 0;
+      sirenBeaconMesh.material.color.setHex(0xef4444);
     }
   }
 

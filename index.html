@@ -188,10 +188,27 @@
               <button id="btn-view-top" class="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 text-[11px] font-medium transition" title="Tampak Atas Maket">
                 🔝 Atas
               </button>
-              <button id="btn-view-sensor" class="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 text-[11px] font-medium transition" title="Fokus Sensor ESP32">
-                🎯 Sensor
+            </div>
+
+            <!-- Hardware Sensor Quick Focus Buttons -->
+            <div class="flex items-center bg-[#090c14] rounded border border-slate-700/80 p-0.5 space-x-0.5">
+              <button onclick="focusSensor('esp32')" class="px-1.5 py-0.5 rounded hover:bg-slate-800 text-sky-400 text-[11px] font-medium transition" title="Fokus & Inspeksi Board ESP32">
+                💻 ESP32
+              </button>
+              <button onclick="focusSensor('mpu6050')" class="px-1.5 py-0.5 rounded hover:bg-slate-800 text-cyan-400 text-[11px] font-medium transition" title="Fokus Inclinometer MPU6050 di Lereng">
+                🧭 Inclinometer
+              </button>
+              <button onclick="focusSensor('soil')" class="px-1.5 py-0.5 rounded hover:bg-slate-800 text-emerald-400 text-[11px] font-medium transition" title="Fokus Sensor Kelembapan Kapasitif v1.2">
+                🌱 Kelembapan
+              </button>
+              <button onclick="focusSensor('rain')" class="px-1.5 py-0.5 rounded hover:bg-slate-800 text-amber-400 text-[11px] font-medium transition" title="Fokus Sensor Hujan & LM393">
+                🌧️ Hujan
+              </button>
+              <button onclick="focusSensor('siren')" class="px-1.5 py-0.5 rounded hover:bg-slate-800 text-rose-400 text-[11px] font-medium transition" title="Fokus Sirine & Piezo Buzzer">
+                🚨 Sirine
               </button>
             </div>
+
             <button id="btn-toggle-acrylic" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-400 text-[11px] font-medium transition" title="Ganti Mode Tampilan Akrilik">
               💎 Akrilik: HD
             </button>
@@ -293,32 +310,41 @@
             </div>
           </div>
 
-          <!-- INTERACTIVE DEVICE MODAL -->
-          <div id="device-modal" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 panel p-4 shadow-xl border-slate-700 hidden z-20">
+          <!-- INTERACTIVE HARDWARE INSPECTOR MODAL -->
+          <div id="device-modal" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 max-w-[92%] panel p-4 shadow-2xl border-slate-700 hidden z-30 bg-[#0f1422]/95 backdrop-blur-md">
             <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5">
               <div class="flex items-center space-x-2">
-                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span class="font-bold text-xs text-white">IOT NODE: ESP32-DEV-01</span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span id="modal-sensor-title" class="font-bold text-xs text-white">ESP32 DOIT DevKit V1 (Main Gateway)</span>
               </div>
               <button onclick="closeDeviceModal()" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-slate-800">✕</button>
             </div>
 
-            <div class="space-y-1.5 text-xs font-mono">
-              <div class="flex justify-between py-0.5 border-b border-slate-800/60">
-                <span class="text-slate-400">Lokasi:</span>
-                <span class="text-slate-200">Puncak Bidang Gelincir</span>
+            <div class="space-y-2 text-xs font-mono">
+              <div class="bg-[#090c14] p-2 rounded border border-slate-800">
+                <span class="text-[10px] text-slate-400 block mb-0.5">Fungsi Komponen:</span>
+                <p id="modal-sensor-desc" class="text-slate-200 text-[11px] leading-relaxed">
+                  Pusat komputasi maket geoteknik: memproses data DMP dari MPU6050, membaca kelembapan kapasitif, serta memicu sirene alarm secara otomatis.
+                </p>
               </div>
-              <div class="flex justify-between py-0.5 border-b border-slate-800/60">
-                <span class="text-slate-400">Catu Daya:</span>
-                <span class="text-emerald-400">5.0V USB VCC (Stabil)</span>
-              </div>
-              <div class="flex justify-between py-0.5 border-b border-slate-800/60">
-                <span class="text-slate-400">Kemiringan MPU:</span>
-                <span class="text-sky-400" id="modal-pitch-val">Pitch: 2.1° | Roll: 0.8°</span>
-              </div>
-              <div class="flex justify-between py-0.5 border-b border-slate-800/60">
-                <span class="text-slate-400">Kelembapan:</span>
-                <span class="text-sky-400" id="modal-moist-val">32%</span>
+
+              <div class="space-y-1">
+                <div class="flex justify-between py-0.5 border-b border-slate-800/60">
+                  <span class="text-slate-400">Posisi di Maket:</span>
+                  <span id="modal-sensor-loc" class="text-slate-200 text-right">Bracket Akrilik Sisi Kiri</span>
+                </div>
+                <div class="flex justify-between py-0.5 border-b border-slate-800/60">
+                  <span class="text-slate-400">Catu Daya:</span>
+                  <span id="modal-sensor-pwr" class="text-emerald-400 text-right">5.0V USB VCC (Regulated)</span>
+                </div>
+                <div class="flex justify-between py-0.5 border-b border-slate-800/60">
+                  <span class="text-slate-400">Jalur GPIO / Pinout:</span>
+                  <span id="modal-sensor-gpio" class="text-sky-400 text-right">I2C (GPIO 21 & 22)</span>
+                </div>
+                <div class="flex justify-between py-0.5 border-b border-slate-800/60">
+                  <span class="text-slate-400">Telemetri Live:</span>
+                  <span id="modal-sensor-telem" class="text-amber-400 text-right">Pitch: 2.1° | Roll: 0.8°</span>
+                </div>
               </div>
             </div>
 
@@ -326,8 +352,8 @@
               <button onclick="calibrateSensorZero()" class="px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition">
                 Kalibrasi Nol
               </button>
-              <button onclick="acknowledgeCurrentAlert()" class="px-2.5 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white text-xs font-medium transition">
-                Acknowledge
+              <button onclick="closeDeviceModal()" class="px-2.5 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white text-xs font-medium transition">
+                Tutup Info
               </button>
             </div>
           </div>
